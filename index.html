@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>GPS Web Server</title>
+    <style>
+        a:link {
+            text-decoration: none;
+            text-align: center;
+        }
+        
+        table,
+        th,
+        td {
+            border: 1px solid black;
+        }
+        
+        #map {
+            display: block;
+            /* background-color: gray; */
+            margin-left: auto;
+            margin-right: auto;
+            height: 800px;
+            width: 100%;
+        }
+        
+        .header {
+            background-image: url(https://media.istockphoto.com/photos/satellite-picture-id598826374?k=20&m=598826374&s=612x612&w=0&h=rno_OoPIVDi0G-vgCTnKPa67VdtUCHj1uqYAm4gA_Js=);
+            background-repeat: no-repeat;
+            background-size: contain;
+            color: #000;
+        }
+        
+        .modal.open {
+            display: flex;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            background: rgba(0, 0, 0, 0.4);
+            align-items: center;
+            justify-content: center;
+            display: none;
+        }
+        
+        .modal-container {
+            background-color: #fff;
+            width: 500px;
+            min-height: 200px;
+            position: relative;
+            max-width: calc(100% - 32px);
+            animation: modalFadeIn ease 0.8s;
+        }
+        
+        .modal-header {
+            background-color: rgb(255, 0, 0);
+            color: #fff;
+            height: 50px;
+            align-items: center;
+            display: flex;
+            justify-content: center;
+            font-size: 30px;
+        }
+        
+        .modal-body {
+            text-align: center;
+            padding: 16px;
+            font-weight: 600;
+            font-size: 20px;
+        }
+        
+        .modal-footer {
+            text-align: right;
+            padding: 16px;
+            border: none;
+        }
+        
+        .modal-footer-close {
+            float: right;
+            font-size: 15px;
+            padding: 8px 16px;
+            background-color: #f44336;
+            color: #fff;
+        }
+        
+        .modal-footer-close:hover {
+            color: #000;
+            background-color: #ccc;
+            cursor: pointer;
+        }
+        
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0.2;
+                transform: translateY(-140px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <p ALIGN=CENTER style=" font-size:120%; "><b>GPS Web Server</b></p>
+        <table ALIGN=CENTER style=width:50%>
+            <tr>
+                <th>Date</th>
+                <td ALIGN=CENTER> client.println(Date);
+                </td>
+            </tr>
+            <tr>
+                <th>Local time</th>
+                <td ALIGN=CENTER> client.println(Time);
+                </td>
+            </tr>
+            <tr>
+                <th>Latitude</th>
+                <td ALIGN=CENTER> client.println(Latitude);
+                </td>
+            </tr>
+            <tr>
+                <th>Longitude</th>
+                <td ALIGN=CENTER> client.println(Longitude);
+                </td>
+            </tr>
+            <tr>
+                <th>Altitude, m</th>
+                <td ALIGN=CENTER> client.println(alt);
+                </td>
+            </tr>
+            <tr>
+                <th>Satellites</th>
+                <td ALIGN=CENTER> client.println(sat);
+                </td>
+            </tr>
+            <tr>
+                <th>Fix age</th>
+                <td ALIGN=CENTER> client.println(fixage);
+                </td>
+            </tr>
+            <tr>
+                <th>Speed,km/h</th>
+                <td ALIGN=CENTER> client.println(speed1);
+                </td>
+            </tr>
+            <tr>
+                <th>Course,deg</th>
+                <td ALIGN=CENTER> client.println(course1);
+                </td>
+            </tr>
+            <tr>
+                <th>Distance to Waypoint, km</th>
+                <td ALIGN=CENTER id="distance"> client.println(distanceKmToWaypoint);
+                </td>
+            </tr>
+            <tr>
+                <th>Heading to Waypoint, km</th>
+                <td ALIGN=CENTER> client.println(courseToWaypoint);
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div id="map"></div>
+
+    <div class="modal js-modal" id="openModal">
+        <div class="modal-container js-modal-container">
+            <header class="modal-header">
+                WARNING
+            </header>
+            <div class="modal-body">
+                Out of restricted area !!!
+            </div>
+            <footer class="modal-footer">
+                <div class="modal-footer-close js-modal-footer-close" id="closeModal">
+                    Close
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.querySelector('.js-modal')
+        const modalClose = document.querySelector('.js-modal-footer-close')
+
+        function showAlert() {
+            // modal.classList.add('open')
+            document.getElementById('openModal').style.display = 'flex';
+        }
+
+        function closeAlert() {
+            // modal.classList.remove('open')
+            document.getElementById('openModal').style.display = 'none';
+        }
+        modalClose.addEventListener('click', closeAlert)
+    </script>
+
+    <script>
+        var centerLat = 10.861711698122727; // vĩ độ tâm đường tròn //waypoint lat
+        var centerLng = 106.7557133830837; // kinh độ tâm đường tròn //waypoint lng 
+
+        var latGPS = 10.831146698105993; // toa do GPS
+        var lngGPS = 106.71327169282712; // toa do GPS
+
+        function initMap() {
+            var test = {
+                lat: latGPS, //latitude
+                lng: lngGPS //longtitude
+
+            };
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 16,
+                center: test
+            });
+
+            // 10.86214112454928, 106.75617678308375
+            creat_bankinh(centerLat, centerLng, 3000);
+
+
+            var distancePointToPoint = calcDist(centerLat, centerLng, latGPS, lngGPS);
+            if (distancePointToPoint > 3) {
+                showAlert();
+            }
+            document.getElementById("distance").innerHTML = distancePointToPoint.toFixed(2);
+
+            // var directionsService = new google.maps.DirectionsService();
+            // var directionsDisplay = new google.maps.DirectionsRenderer();
+            // directionsDisplay.setMap(map); // map là biến google maps được tạo ở trên
+            // dogetRedirect_map(directionsService, directionsDisplay);
+        }
+
+        var cityCircle; // Khai báo biến
+
+        function creat_bankinh(user_lat_get, user_lng_get, radius) {
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 14,
+                center: {
+                    lat: user_lat_get,
+                    lng: user_lng_get
+                }
+            });
+            if (user_lng_get && user_lat_get) {
+                cityCircle = new google.maps.Circle({
+                    strokeColor: '#888', // Màu viên
+                    strokeOpacity: 0.5, // Độ mờ viền
+                    strokeWeight: 1, // Độ mảnh của đường tròn
+                    fillColor: '#03A9F4', // Màu nền của đường tròn
+                    fillOpacity: 0.1, // Độ trong suốt của nền
+                    map: map, // Hiển thị trên map nào
+                    center: {
+                        lat: user_lat_get,
+                        lng: user_lng_get
+                    }, // tạo độ trung tâm
+                    radius: radius // bán kính
+                });
+            }
+            const iconBase =
+                "https://developers.google.com/maps/documentation/javascript/examples/full/images/";
+            const icons = {
+                parking: {
+                    icon: iconBase + "parking_lot_maps.png",
+                },
+                library: {
+                    icon: iconBase + "library_maps.png",
+                },
+                info: {
+                    icon: iconBase + "info-i_maps.png",
+                },
+            };
+            const features = [{
+                position: {
+                    lat: user_lat_get,
+                    lng: user_lng_get
+                },
+                type: "parking",
+                title: "This is my home"
+            }, {
+                position: {
+                    lat: latGPS, //+latitute//
+                    lng: lngGPS //+longtitute//
+                },
+                type: "library",
+                title: "The vehicle",
+            }];
+
+            for (let i = 0; i < features.length; i++) {
+                const marker = new google.maps.Marker({
+                    position: features[i].position,
+                    icon: icons[features[i].type].icon,
+                    map: map,
+                    title: features[i].title
+                });
+            }
+        }
+
+        // function dogetRedirect_map(directionsService, directionsDisplay) {
+
+        //     var position = new google.maps.LatLng(centerLat, centerLng); // Tọa độ điểm xuất phát
+        //     var roomLatlng = new google.maps.LatLng(10.863479271286877, 106.75608022372049); // Tọa độ điểm đễn
+
+        //     var request = {
+        //         origin: position,
+        //         destination: roomLatlng,
+        //         travelMode: google.maps.TravelMode.DRIVING
+        //     };
+
+        //     directionsService.route(request, function(response, status) {
+        //         if (status == google.maps.DirectionsStatus.OK) {
+        //             directionsDisplay.setOptions({
+        //                 preserveViewport: true,
+        //                 suppressMarkers: true
+        //             });
+        //             directionsDisplay.setDirections(response);
+        //             var myroute = response.routes[0]; // Kết quả trả về
+        //             var time = myroute.legs[0].duration.text; // Thời gian duy chuyển
+        //             var total = myroute.legs[0].distance.text; // Chiều dài đoạn đường duy chuyển
+        //             var from = myroute.legs[0].start_address; // Điểm xuất phát
+        //             var to = myroute.legs[0].end_address; // Điểm đến
+        //         } else {
+        //             console.log(status);
+        //         }
+        //     });
+        // }
+
+        function calcDist(lat1, lng1, lat2, lng2) {
+            var R = 6371;
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLon = (lng2 - lng1) * Math.PI / 180;
+            var a =
+                0.5 - Math.cos(dLat) / 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                (1 - Math.cos(dLon)) / 2;
+            return R * 2 * Math.asin(Math.sqrt(a));
+        }
+    </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDJVhynbqbj9lpniQuSfh84ernTdYhs3DU&callback=initMap">
+    </script>
+</body>
+
+</html>
